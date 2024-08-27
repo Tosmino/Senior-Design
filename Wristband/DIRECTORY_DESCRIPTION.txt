@@ -1,0 +1,14 @@
+Directory Description:
+###############################################################################################################
+- Demonstration Wristband Code:
+  Directory to hold the interactive code used to demonstrate functionality of wristband
+
+- Firmware Updater:
+  Directory of program intended to update Bio Sensor Hub firmware using esp32 feather
+
+- Wristband Firmware with Hub:
+  Directory to utilize the wristband as intended using the Bio Sensor Hub
+
+- Wristband Firmware:
+  Directory that was used as a backup in the case that the Bio Sensor Hub could not be updated and utilized
+###############################################################################################################
