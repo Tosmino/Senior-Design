@@ -1,0 +1,209 @@
+#include "mcc_generated_files/system.h"
+int onesec = 0;
+unsigned int tempRAW;
+int tempC;
+void initI2C(int BRG)
+{
+    T3CON = 0x8000;
+    I2C1BRG = BRG;
+    I2C1CONbits.I2CEN = 1;
+}
+void _ISRFAST _T1Interrupt(void)
+{
+    onesec = 1;
+    // Reset T1 Flag
+    _T1IF = 0;
+}
+void startI2C(void)
+{
+    TMR3 = 0;
+    while (TMR3 < 160)
+        ;
+    I2C1CONbits.SEN = 1;
+    while (I2C1CONbits.SEN)
+        ;
+    TMR3 = 0;
+    while (TMR3 < 160)
+        ;
+}
+void stopI2C(void)
+{
+    TMR3 = 0;
+    while (TMR3 < 160)
+        ;
+    I2C1CONbits.PEN = 1;
+    while (I2C1CONbits.PEN)
+        ;
+    TMR3 = 0;
+    while (TMR3 < 160)
+        ;
+}
+void sendbyteI2C(char data)
+{
+    while (I2C1STATbits.TBF)
+        ;
+    I2C1TRN = data;
+    TMR3 = 0;
+    while (TMR3 < 160)
+        ;
+}
+char getbyteI2C(void)
+{
+    I2C1CONbits.RCEN = 1;
+    while (!I2C1STATbits.RBF)
+        ;
+    I2C1CONbits.ACKEN = 1;
+    TMR3 = 0;
+    while (TMR3 < 160)
+        ;
+    return (I2C1RCV);
+}
+int getTemp(void)
+{
+    // Adjust baud rate to 4kHz to communicate with TMP102
+    initI2C(0xFA0);
+    _RF2 = 0;
+    // Start Event
+    startI2C();
+    // Send address of TMP102 with intent to read
+    sendbyteI2C(0x91);
+    while (I2C1STATbits.ACKSTAT)
+        ;
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    // Send pointer register to temp register
+    sendbyteI2C(0x00);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    // Read first byte and adjust left 4 bits
+    tempRAW = (getbyteI2C() << 4);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    // Read second byte, adjust right 4 bits, then add
+    tempRAW = tempRAW + (getbyteI2C() >> 4);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    // Stop Event
+    stopI2C();
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    _RF2 = 1;
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    // Convert tempRAW to degrees Celsius
+    return tempRAW * 0.625;
+}
+void outSevenSeg(int tempC)
+{
+    // Prepare the output
+    int left = tempC / 10;              // Isolate the largest two digits
+    int decimal = tempC % 10;           // Find the decimal number using modulus on the
+    original int leftDigit = left / 10; // Find the left most digit by dividing by 10
+    int rightDigit = left % 10;         // Finally use modulus to find the ones place digit
+    // Convert all the numbers to chars
+    char firstDigit = leftDigit + '0';
+    char secondDigit = rightDigit + '0';
+    char decimalDigit = decimal + '0';
+    _RF2 = 0;
+    // Output reading to 7Seg
+    // Adjust baud rate to 155Hz to communicate with 7Seg
+    initI2C(0x9B);
+    // Start Event
+    startI2C();
+    // Address of 7Seg
+    sendbyteI2C(0xE2);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    sendbyteI2C(0x76);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    sendbyteI2C(firstDigit);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    sendbyteI2C(secondDigit);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    sendbyteI2C(decimalDigit);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    sendbyteI2C(0x77);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    sendbyteI2C(0x2);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    stopI2C();
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    _RF2 = 1;
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+}
+int main(void)
+{
+    SYSTEM_Initialize();
+    // Initialize I2C baud rate for temp sensor (4kHz)
+    initI2C(0xFA0);
+    TRISFbits.TRISF2 = 0;
+    _RF2 = 0;
+    // Configure TMP102
+    // Start Event
+    startI2C();
+    // Send Address of TMP102 with intent to write
+    sendbyteI2C(0x90);
+    while (I2C1STATbits.ACKSTAT)
+        ;
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    // Point to configuration register
+    sendbyteI2C(0x01);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    // Send desired configuration (based off HW16)
+    sendbyteI2C(0x60);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    sendbyteI2C(0xA0);
+    TMR3 = 0;
+    while (TMR3 < 1600)
+        ;
+    // Stop Event
+    stopI2C();
+    T1CON = 0x8030;
+    PR1 = 62500 - 1;
+    // Enable Timer 3
+    _T1IF = 0;
+    _T1IE = 1;
+    while (1)
+    {
+        // If 1 second has passed
+        if (onesec)
+        {
+            // Read from the TMP102
+            tempC = getTemp();
+            // Reset 1 second flag
+            onesec = 0;
+        }
+        // Output tempC to 7Seg
+        outSevenSeg(tempC);
+    }
+    return 1;
+}

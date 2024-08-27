@@ -1,0 +1,56 @@
+#include "mcc_generated_files/system.h"
+
+// Initialize the ADC
+void initADC(int amask)
+{
+    AD1PCFG = amask;
+    // Assign values to the control registers
+    AD1CON1 = 0x00E0;
+    AD1CON2 = 0x0000;
+    AD1CON3 = 0x1F01;
+    // Input channel select is assigned 0 (unused)
+    AD1CSSL = 0;
+    // Change most significant bit of AD1CON1, to turn on
+    AD1CON1bits.ADON = 1;
+}
+
+// Read the ADC
+int readADC(int ch)
+{
+    // Assign channel number
+    AD1CHS = ch;
+    // Set sample bit
+    AD1CON1bits.SAMP = 1;
+/ Wait for done flag
+while(!(AD1CON1bits.DONE));
+
+// Clear done flag
+AD1CON1bits.DONE = 0;
+return ADC1BUF0;
+}
+int k;
+void _ISRFAST _T3Interrupt(void)
+{
+    OC1RS = readADC(3);
+    if (++k >= 40)
+        k = 0;
+    _T3IF = 0;
+}
+int main(void)
+{
+    // initialize the device
+    SYSTEM_Initialize();
+    // Initialize the Analog Digital Converter
+    initADC(0xFFF7);
+    T3CON = 0x8000;
+    PR3 = 400 - 1;
+    OC1CON = 0x000E;
+    OC1R = OC1RS = 200;
+    _T3IF = 0;
+    _T3IE = 1;
+    while (1)
+    {
+        Nop();
+    }
+    return 1;
+}

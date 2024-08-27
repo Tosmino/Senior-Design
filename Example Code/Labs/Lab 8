@@ -1,0 +1,129 @@
+#include "mcc_generated_files/system.h"
+// Initialize the ADC
+void initADC(int amask)
+{
+    AD1PCFG = amask;
+    // Assign values to the control registers
+    AD1CON1 = 0x00E0;
+    AD1CON2 = 0x0000;
+    AD1CON3 = 0x1F01;
+    // Input channel select is assigned 0 (unused)
+    AD1CSSL = 0;
+    // Change most significant bit of AD1CON1, to turn on
+    AD1CON1bits.ADON = 1;
+}
+void initSPI1(void)
+{
+    SPI1CON1 = 0x0120;
+    SPI1STAT = 0x8000;
+}
+// Read the ADC
+int readADC(int ch)
+{
+    // Assign channel number
+    AD1CHS = ch;
+    // Set sample bit
+    AD1CON1bits.SAMP = 1;
+    // Wait for done flag
+    while (!(AD1CON1bits.DONE))
+        ;
+    // Clear done flag
+    AD1CON1bits.DONE = 0;
+    return ADC1BUF0;
+}
+// Writes to the 7seg data register
+unsigned char writeSPI1(unsigned char j)
+{
+    while (SPI1STATbits.SPITBF)
+        ;
+    SPI1BUF = j;
+    while (!SPI1STATbits.SPIRBF)
+        ;
+    return SPI1BUF;
+}
+// Output temperature to 7seg display
+void sevenSegOutput(int temp, char c)
+{
+    int left = temp / 10;       // Isolate the largest two digits
+    int decimal = temp % 10;    // Find the decimal number using modulus on the original
+    int leftDigit = left / 10;  // Find the left most digit by dividing by 10
+    int rightDigit = left % 10; // Finally use modulus to find the ones place digit
+    // Convert all the numbers to chars
+    char firstDigit = leftDigit + '0';
+    char secondDigit = rightDigit + '0';
+    char decimalDigit = decimal + '0';
+    _RF2 = 0;
+    writeSPI1(0x76);         // Clear the display
+    writeSPI1(firstDigit);   // Write to the display
+    writeSPI1(secondDigit);  // Write to the display
+    writeSPI1(decimalDigit); // Write to the display
+    writeSPI1(c);            // C or F based on input
+    writeSPI1(0x77);         // Send decimal command
+    writeSPI1(0b00100010);   // Set bit 2 and 3 to on
+    _RF2 = 1;
+    // Wait to give visual stability
+    TMR1 = 0;
+    while (TMR1 < 5000)
+        ;
+}
+int main(void)
+{
+    SYSTEM_Initialize();
+    initSPI1();
+    TRISFbits.TRISF2 = 0;
+    _RF2 = 1;
+    // Initialize variables
+    int tempRAW, tempC, mvConst, tempF;
+    int voltDiff;
+    // 500 mV * 10,000
+    mvConst = 500;
+    // voltage difference used for calculations
+    voltDiff = 3300 / 1023;
+    // Configure timer
+    T1CON = 0x8030;
+    // Initialize the Analog Digital Converter
+    initADC(0xFFEF);
+    // Bool between Fahrenheit and Celsius
+    int tempFlag = 0;
+    // Bool for action on button release
+    int pressed = 0;
+    TRISDbits.TRISD6 = 1; // Makes RD6 an input
+    while (1)
+    {
+        // Change temp choice on press
+        // while button is pushed
+        while (PORTDbits.RD6 == 0)
+        {
+            pressed = 1;
+        }
+        if (pressed == 1) // button not pushed
+        {
+            // Flip temp unit
+            if (tempFlag == 0)
+            {
+                tempFlag = 1;
+            }
+            else
+            {
+                tempFlag = 0;
+            }
+            // Reset Flag
+            pressed = 0;
+        }
+        // Read from sensor and store to tempRAW
+        tempRAW = readADC(4);
+        // Calculate temperature in celsius
+        tempC = (3300 / 1023.0) * tempRAW - mvConst;
+        // Calculate temperature in Fahrenheit
+        tempF = 320 + 1.8 * ((3300 / 1023.0) * tempRAW - mvConst);
+        if (tempFlag == 1)
+        {
+            sevenSegOutput(tempF, 'F');
+        }
+        if (tempFlag == 0)
+        {
+            sevenSegOutput(tempC, 'C');
+        }
+    }
+    return 1;
+}

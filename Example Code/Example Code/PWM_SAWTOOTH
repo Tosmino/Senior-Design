@@ -1,0 +1,32 @@
+#include "mcc_generated_files/system.h"
+
+int k;
+
+void _ISRFAST _T3Interrupt(void)
+{
+    OC1RS = 10*k;
+    if (++k>=40)
+        k=0;
+    _T3IF=0;
+}
+
+int main(void)
+{
+    SYSTEM_Initialize();
+    
+    T3CON=0x8000;
+    PR3=400-1;
+    
+    OC1R = OC1RS = 200;
+    OC1CON = 0x000E;
+    
+    _T3IF=0;
+    _T3IE=1;
+    
+    while (1)
+    {
+        Nop();
+    }
+
+    return 1;
+}

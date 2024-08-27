@@ -1,0 +1,116 @@
+#include "mcc_generated_files/system.h"
+#define CTS _RD6
+#define RTS _RF12
+    // Initialize variables
+    int tempRAW,
+    tempC,
+    mvConst,
+    tempF;
+int voltDiff;
+// 500 mV * 10,000
+mvConst = 500;
+// voltage difference used for calculations
+voltDiff = 3300 / 1023;
+// Initialize the ADC
+void initADC(int amask)
+{
+    AD1PCFG = amask;
+    // Assign values to the control registers
+    AD1CON1 = 0x00E0;
+    AD1CON2 = 0x0000;
+    AD1CON3 = 0x1F01;
+    // Input channel select is assigned 0 (unused)
+    AD1CSSL = 0;
+    // Change most significant bit of AD1CON1, to turn on
+    AD1CON1bits.ADON = 1;
+}
+void initU2(int BRG)
+{
+    U2BRG = BRG;
+    U2MODE = 0x8000;
+    U2STA = 0x0400;
+    TRISFbits.TRISF12 = 1;
+    RTS = 1;
+}
+// Read the ADC
+int readADC(int ch)
+{
+    // Assign channel number
+    AD1CHS = ch;
+    // Set sample bit
+    AD1CON1bits.SAMP = 1;
+    // Wait for done flag
+    while (!(AD1CON1bits.DONE))
+        ;
+    // Clear done flag
+    AD1CON1bits.DONE = 0;
+    return ADC1BUF0;
+}
+char putU2(char c)
+{
+    while (U2STAbits.UTXBF)
+        ;
+    U2TXREG = c;
+    return c;
+}
+char getU2(void)
+{
+    RTS = 0;
+    while (!U2STAbits.URXDA)
+        ;
+    RTS = 1;
+    return U2RXREG;
+}
+// Output temperature to 7seg display
+void sevenSegOutput(int temp, char c)
+{
+    int left = temp / 10;       // Isolate the largest two digits
+    int decimal = temp % 10;    // Find the decimal number using modulus on the original
+    int leftDigit = left / 10;  // Find the left most digit by dividing by 10
+    int rightDigit = left % 10; // Finally use modulus to find the ones place digit
+    // Convert all the numbers to chars
+    char firstDigit = leftDigit + '0';
+    char secondDigit = rightDigit + '0';
+    char decimalDigit = decimal + '0';
+    putU2(0x76);         // Clear the display
+    putU2(firstDigit);   // Assign first digit
+    putU2(secondDigit);  // Assign second digit
+    putU2(decimalDigit); // Assign third digit
+    putU2(c);            // Send C or F
+    putU2(0x77);         // Send decimal command
+    putU2(0b00100010);   // Set bit 2 and 3 to on
+    // Wait to give visual stability
+    TMR1 = 0;
+    while (TMR1 < 5000)
+        ;
+}
+int main(void)
+{
+    SYSTEM_Initialize();
+    initU2(103);
+    TRISFbits.TRISF2 = 0;
+    // Configure timer
+    T1CON = 0x8030;
+    // Initialize the Analog Digital Converter
+    initADC(0xFFEF);
+    while (1)
+    {
+        // Read from sensor and store to tempRAW
+        tempRAW = readADC(4);
+        // Calculate temperature in celsius
+        tempC = (3300 / 1023.0) * tempRAW - mvConst;
+        // Calculate temperature in Fahrenheit
+        tempF = 320 + 1.8 * ((3300 / 1023.0) * tempRAW - mvConst);
+        // Change temp choice on press
+        // while button is pushed
+        if (CTS)
+        {
+            sevenSegOutput(tempC, 'C');
+        }
+        else
+        {
+            sevenSegOutput(tempF, 'F');
+        }
+    }
+    return 1;
+}

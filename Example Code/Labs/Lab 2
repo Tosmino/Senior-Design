@@ -1,0 +1,22 @@
+#include "mcc_generated_files/system.h"
+
+int main(void)
+{
+    // initialize the device
+    SYSTEM_Initialize();
+    TRISA = 0x00;
+    
+    int counter = 0;    // Initialize the counter variable for incrementation
+    PORTA = 0;      // Make sure PORTA is zeroed out
+    while (1)
+    {
+        PORTA = counter;    //Set the value of PORTA
+        for (long i = 0; i < 255999; i++)    //For loop for blocking operation as a delay
+        {
+            Nop();
+        }
+        counter++;  //Iterate the counter
+    }
+
+    return 1;
+}

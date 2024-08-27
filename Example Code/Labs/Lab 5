@@ -1,0 +1,94 @@
+#include "mcc_generated_files/system.h"
+
+void initLCD(void)
+{
+    T1CON = 0x8030;
+    TMR1 = 0; while(TMR1 < 2000);
+    
+    // Initialize the PMP
+    PMCON = 0x8303;
+    PMMODE = 0x03FF;
+    PMAEN = 0x0001;
+    
+    PMADDR = 0;
+    PMDIN1 = 0b00111000;
+    TMR1 = 0; while(TMR1 < 3);
+    
+    PMDIN1 = 0b00001100; 
+    TMR1 = 0; while(TMR1 < 100);
+    
+    PMDIN1 = 0b00000001;
+    TMR1 = 0; while(TMR1 < 100);
+    
+    PMDIN1 = 0b00000110;
+    TMR1 = 0; while(TMR1 < 100);
+    
+    
+}
+
+char readLCD(int addr)
+{
+    int dummy;
+    while(PMMODEbits.BUSY);
+    PMADDR = addr;
+    dummy = PMDIN1;
+    while(PMMODEbits.BUSY);
+    return(PMDIN1);
+}
+
+#define BusyLCD() readLCD(0)&0x80
+
+void writeLCD(int addr, char c)
+{
+    while(BusyLCD());
+    while(PMMODEbits.BUSY);
+    PMADDR = addr;
+    PMDIN1 = c;
+}
+
+#define putLCD(d) writeLCD(1, (d))
+#define cmdLCD(c) writeLCD(0, (c))
+#define homeLCD() writeLCD(0, 2)
+
+void row2LCD()
+{
+    PMDIN1 = 0b0000001110;
+    TMR1 = 0; while(TMR1 < 100);
+    
+    PMDIN1 = 0b0000010000;
+    TMR1 = 0; while(TMR1 < 100);
+    
+    PMDIN1 = 0b0011000000;
+    TMR1 = 0; while(TMR1 < 100);
+}
+
+int main(void)
+{
+    // initialize the device
+    SYSTEM_Initialize();
+    initLCD();
+    
+    char name1[15] = {'J','A','R','E','D',' ','V','A','S','B','I','N','D','E','R'};
+    char name2[15] = {'F','R','A','N','K','I','E',' ','K','E','T','C','H','U','M'};
+    
+    // Send all of the characters to the display
+    for(int i = 0; i < 15; ++i)
+    {
+      putLCD(name1[i]);  
+    }
+    
+    row2LCD();
+    
+    for(int i = 0; i < 15; ++i)
+    {
+      putLCD(name2[i]);  
+    }
+    
+    
+    while (1)
+    {
+        // Add your application code
+    }
+
+    return 1;
+}

@@ -1,0 +1,23 @@
+#include "mcc_generated_files/system.h"
+int main(void)
+{
+    // initialize the device
+    SYSTEM_Initialize();
+    
+    // Assign which pins we will be using
+    AD1PCFG = 0x00cf;
+
+    // 12 most significant pins will be outputs, 4 least will be inputs
+    TRISB = 0xfff0;
+    while (1)
+    {
+        PORTB = 0x000f; // Port B on
+        PORTB = 0x0000; // Port B off
+    }
+
+    return 1;
+}
+/**
+ End of File
+*/
+

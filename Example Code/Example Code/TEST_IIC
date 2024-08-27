@@ -1,0 +1,69 @@
+#include "mcc_generated_files/system.h"
+
+
+void initI2C(int BRG)
+{
+    T3CON=0x8000;
+    I2C1BRG = BRG;
+    I2C1CONbits.I2CEN = 1;
+}
+
+void startI2C(void)
+{
+    TMR3=0;while(TMR3<160);
+    I2C1CONbits.SEN = 1;
+    while(I2C1CONbits.SEN);
+    TMR3=0;while(TMR3<160);
+}
+
+void stopI2C(void)
+{
+    TMR3=0;while(TMR3<160);
+    I2C1CONbits.PEN = 1;
+    while(I2C1CONbits.PEN);
+    TMR3=0;while(TMR3<160);
+}
+
+
+void sendbyteI2C(char data)
+{
+    while(I2C1STATbits.TBF);
+    I2C1TRN = data;
+    TMR3=0;while(TMR3<160);
+}
+
+char getbyteI2C(void)
+{
+    I2C1CONbits.RCEN = 1;
+    while(!I2C1STATbits.RBF);
+    I2C1CONbits.ACKEN = 1;
+    TMR3=0;while(TMR3<160);
+    return(I2C1RCV);
+}
+
+int main(void)
+{
+    SYSTEM_Initialize();
+    initI2C(0x9D);
+    TRISFbits.TRISF2=0;
+    _RF2=1;
+    Nop();
+    
+    while (1)
+    {
+        _RF2=0;
+        startI2C();
+        sendbyteI2C(0xC4);
+        //while(I2C1STATbits.ACKSTAT);
+        TMR3=0;while(TMR3<1600);
+        
+        
+        sendbyteI2C(0x08);TMR3=0;while(TMR3<1600);
+        sendbyteI2C(0x00);TMR3=0;while(TMR3<1600);
+        stopI2C();
+        TMR3=0;while(TMR3<1600);_RF2=1;TMR3=0;while(TMR3<1600);
+        
+    }
+
+    return 1;
+}
